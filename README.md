@@ -29,22 +29,153 @@ pixi run python run.py
 
 ## 使用方式
 
-| 指令 | 說明 |
-|---|---|
-| `pixi run python run.py` | 互動模式：列出裝置 → 選擇麥克風 → 錄音 10 秒 → 辨識 |
-| `pixi run python run.py --duration 5` | 自訂錄音秒數 |
-| `pixi run python run.py --device 4` | 指定音訊裝置編號，跳過選擇步驟 |
-| `pixi run python run.py --file audio.wav` | 直接辨識音檔（跳過錄音） |
-| `pixi run list-devices` | 列出所有可用的音訊輸入裝置 |
+本專案提供五種操作模式，可依需求選擇。
 
-### 參數說明
+---
 
-| 參數 | 預設值 | 說明 |
-|---|---|---|
-| `--duration` | 10 | 錄音秒數 |
-| `--device` | 無 | 音訊裝置編號（預設為互動選擇） |
-| `--list-devices` | — | 列出裝置後結束 |
-| `--file` | 無 | 指定音檔路徑（跳過錄音） |
+### 1. 快速入門（無參數）
+
+適合**第一次使用**，程式會引導你選擇麥克風並開始錄音。
+
+```bash
+pixi run python run.py
+```
+
+**執行流程**：
+
+1. 列出所有可用的音訊輸入裝置（含編號與輸入頻道數）
+2. 提示你輸入欲使用的裝置編號
+3. 開始錄音（預設 10 秒）
+4. 載入 Breeze ASR 25 模型（首次會從 HuggingFace 下載約 3GB）
+5. 執行語音辨識
+6. 輸出各環節計時與辨識結果
+
+**範例**：
+
+```
+===== Breeze ASR 25 語音辨識 (faster-whisper) =====
+=== 可用的音訊輸入裝置 ===
+  [0] Microphone Array (輸入頻道: 2)
+  [4] Headset (soundcore Liberty 4 NC) (輸入頻道: 1)
+
+請選擇麥克風裝置編號: 4
+
+開始錄音 10 秒... (請說話)
+錄音完成
+
+  [載入模型] 4.03s
+  [模型推論] 0.99s
+  ───────────────────────────
+  總計: 5.03s
+
+=== 辨識結果 ===
+今天天氣真不錯
+================
+```
+
+---
+
+### 2. 列出音訊裝置（`--list-devices`）
+
+預先查看所有可用的麥克風裝置及其編號，不執行辨識。
+
+```bash
+pixi run python run.py --list-devices
+# 或
+pixi run list-devices
+```
+
+**適合情境**：不確定麥克風裝置編號時，先查看再搭配 `--device` 使用。
+
+**範例**：
+
+```
+=== 可用的音訊輸入裝置 ===
+  [0] Microphone Array (輸入頻道: 2)
+  [4] Headset (soundcore Liberty 4 NC) (輸入頻道: 1)
+```
+
+---
+
+### 3. 指定裝置錄音（`--device`）
+
+已知裝置編號時，跳過互動選擇步驟，直接使用指定麥克風。
+
+```bash
+pixi run python run.py --device 4
+```
+
+**適合情境**：已確定要用哪支麥克風（例如 headset），不想每次都被提示選擇。
+
+可與 `--duration` 合併使用：
+
+```bash
+pixi run python run.py --device 4 --duration 30
+```
+
+---
+
+### 4. 自訂錄音長度（`--duration`）
+
+改變錄音秒數，預設為 10 秒。
+
+```bash
+# 只錄 5 秒（快速測試）
+pixi run python run.py --duration 5
+
+# 錄 30 秒（較長語句）
+pixi run python run.py --duration 30 --device 4
+```
+
+**適合情境**：需要更長或更短的錄音時間。
+
+---
+
+### 5. 音檔直接辨識（`--file`）
+
+跳過麥克風錄音，直接辨識已存在的音檔。支援 wav、mp3、flac、ogg、m4a、aac 等多種格式（由 soundfile + ffmpeg 支援）。
+
+```bash
+pixi run python run.py --file test.wav
+pixi run python run.py --file recording.mp3
+```
+
+**執行流程**：
+
+1. 讀取音檔 → 自動轉換為 16kHz 單聲道（若為立體聲則混合為單聲道）
+2. 載入模型
+3. 執行語音辨識
+4. 輸出計時與結果
+
+**適合情境**：已有錄好的音檔，或想批次處理現有錄音檔案。
+
+**範例**：
+
+```
+===== Breeze ASR 25 語音辨識 (faster-whisper) =====
+  [載入音檔] 0.01s
+  [載入模型] 4.03s
+  [模型推論] 0.99s
+  ───────────────────────────
+  總計: 5.03s
+
+=== 辨識結果 ===
+先去樓梯口再去廁所前面最後到飲水機
+================
+```
+
+---
+
+### 參數參考
+
+| 參數 | 型別 | 預設值 | 說明 |
+|---|---|---|---|
+| `--duration` | int | 10 | 錄音秒數（僅麥克風模式有效） |
+| `--device` | int | — | 音訊裝置編號（未指定則互動選擇） |
+| `--list-devices` | flag | — | 列出可用裝置後結束，不執行辨識 |
+| `--file` | str | — | 音檔路徑（指定後跳過麥克風錄音） |
+
+> **注意**：`--file` 與 `--device` / `--duration` 互斥。指定 `--file` 時會忽略其餘參數。
 
 ---
 
