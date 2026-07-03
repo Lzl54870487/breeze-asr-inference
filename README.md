@@ -19,7 +19,7 @@
 # 安裝依賴
 pixi install
 
-# 執行語音辨識（互動模式：選麥克風 → 錄音 10 秒 → 辨識）
+# 執行語音辨識（互動模式：選麥克風 → 按 Enter 開始錄音 → 再按 Enter 結束）
 pixi run python run.py
 ```
 
@@ -33,9 +33,9 @@ pixi run python run.py
 
 ---
 
-### 1. 快速入門（無參數）
+### 1. 按鍵控制錄音（無參數，預設模式）
 
-適合**第一次使用**，程式會引導你選擇麥克風並開始錄音。
+適合**第一次使用**，程式會引導你選擇麥克風，按 Enter 控制開始與結束錄音。
 
 ```bash
 pixi run python run.py
@@ -45,7 +45,7 @@ pixi run python run.py
 
 1. 列出所有可用的音訊輸入裝置（含編號與輸入頻道數）
 2. 提示你輸入欲使用的裝置編號
-3. 開始錄音（預設 10 秒）
+3. 按 **Enter** 開始錄音，再按 **Enter** 結束
 4. 載入 Breeze ASR 25 模型（首次會從 HuggingFace 下載約 3GB）
 5. 執行語音辨識
 6. 輸出各環節計時與辨識結果
@@ -59,9 +59,8 @@ pixi run python run.py
   [4] Headset (soundcore Liberty 4 NC) (輸入頻道: 1)
 
 請選擇麥克風裝置編號: 4
-
-開始錄音 10 秒... (請說話)
-錄音完成
+按 Enter 開始錄音...
+錄音中... (再按 Enter 結束)
 
   [載入模型] 4.03s
   [模型推論] 0.99s
@@ -99,35 +98,33 @@ pixi run list-devices
 
 ### 3. 指定裝置錄音（`--device`）
 
-已知裝置編號時，跳過互動選擇步驟，直接使用指定麥克風。
+已知裝置編號時，跳過互動選擇步驟，直接使用指定麥克風。未指定 `--duration` 時為按鍵控制錄音，指定則為固定秒數。
 
 ```bash
-pixi run python run.py --device 4
+pixi run python run.py --device 4           # 按鍵控制
+pixi run python run.py --device 4 --duration 30  # 固定 30 秒
 ```
 
 **適合情境**：已確定要用哪支麥克風（例如 headset），不想每次都被提示選擇。
-
-可與 `--duration` 合併使用：
-
-```bash
-pixi run python run.py --device 4 --duration 30
-```
 
 ---
 
 ### 4. 自訂錄音長度（`--duration`）
 
-改變錄音秒數，預設為 10 秒。
+指定固定秒數錄音。**未指定此參數時為按鍵控制模式**，指定後則在設定的秒數後自動停止。
 
 ```bash
-# 只錄 5 秒（快速測試）
+# 按鍵控制（無 --duration，預設模式）
+pixi run python run.py
+
+# 固定 5 秒（快速測試）
 pixi run python run.py --duration 5
 
-# 錄 30 秒（較長語句）
-pixi run python run.py --duration 30 --device 4
+# 固定 30 秒，指定裝置
+pixi run python run.py --device 4 --duration 30
 ```
 
-**適合情境**：需要更長或更短的錄音時間。
+**適合情境**：需要精確控制錄音長度，或希望自動停止不需手動操作。
 
 ---
 
@@ -170,7 +167,7 @@ pixi run python run.py --file recording.mp3
 
 | 參數 | 型別 | 預設值 | 說明 |
 |---|---|---|---|
-| `--duration` | int | 10 | 錄音秒數（僅麥克風模式有效） |
+| `--duration` | int | 無（按鍵模式） | 固定錄音秒數；未指定則以 Enter 控制開始/結束 |
 | `--device` | int | — | 音訊裝置編號（未指定則互動選擇） |
 | `--list-devices` | flag | — | 列出可用裝置後結束，不執行辨識 |
 | `--file` | str | — | 音檔路徑（指定後跳過麥克風錄音） |

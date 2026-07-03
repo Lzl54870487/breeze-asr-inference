@@ -44,12 +44,31 @@ def select_device():
 
 
 def record_audio(duration, samplerate=16000, device=None):
-    print(f"\n開始錄音 {duration} 秒... (請說話)")
+    print(f"開始錄音 {duration} 秒... (請說話)")
     frames = int(duration * samplerate)
     recording = sd.rec(frames, samplerate=samplerate, channels=1, dtype=np.float32, device=device)
     sd.wait()
     print("錄音完成\n")
     return recording.flatten()
+
+
+def record_audio_interactive(samplerate=16000, device=None):
+    input("按 Enter 開始錄音...")
+    buffer = []
+
+    def callback(indata, frames, time, status):
+        buffer.append(indata.copy())
+
+    stream = sd.InputStream(
+        samplerate=samplerate, channels=1, dtype=np.float32,
+        device=device, callback=callback,
+    )
+    stream.start()
+    input("錄音中... (再按 Enter 結束)")
+    stream.stop()
+    stream.close()
+    print()
+    return np.concatenate(buffer).flatten()
 
 
 def resample(audio, orig_sr, target_sr=16000):
@@ -86,7 +105,7 @@ def transcribe(model, audio):
 
 def main():
     parser = argparse.ArgumentParser(description="Breeze ASR 25 - USB 麥克風語音辨識")
-    parser.add_argument("--duration", type=int, default=10, help="錄音秒數 (預設: 10)")
+    parser.add_argument("--duration", type=int, default=None, help="錄音秒數 (未指定則為按鍵控制)")
     parser.add_argument("--device", type=int, default=None, help="音訊裝置編號 (預設: 列出裝置供選擇)")
     parser.add_argument("--list-devices", action="store_true", help="列出可用音訊裝置後結束")
     parser.add_argument("--file", type=str, default=None, help="直接辨識音檔 (跳過錄音)")
@@ -104,8 +123,12 @@ def main():
             audio = load_audio(args.file)
     else:
         device = args.device if args.device is not None else select_device()
-        with Timer("錄音"):
-            audio = record_audio(args.duration, device=device)
+        if args.duration is not None:
+            with Timer("錄音"):
+                audio = record_audio(args.duration, device=device)
+        else:
+            with Timer("錄音"):
+                audio = record_audio_interactive(device=device)
 
     with Timer("載入模型"):
         model = load_model()
