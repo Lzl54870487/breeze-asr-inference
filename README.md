@@ -1,4 +1,4 @@
-# STT-test — Breeze ASR 25 語音辨識
+# breeze-asr-inference — Breeze ASR 25 語音辨識
 
 基於聯發科 **Breeze ASR 25** 模型的離線語音辨識工具，支援 USB 麥克風即時收音與音檔辨識，使用 CTranslate2 推論引擎達到 GPU 加速。
 
@@ -57,7 +57,7 @@ pixi run python run.py
 | `python >=3.11,<3.13` | 執行環境 |
 | `pip` | Python 套件安裝器 |
 | `python-sounddevice >=0.5.1` | USB 麥克風音訊擷取（底層 portaudio） |
-| `numpy >=1.26.0` | 音訊資料陣列處理 |
+| `numpy >=1.26.0` | 音訊資料陣列處理與重採樣 |
 
 ### pip 依賴
 
@@ -75,7 +75,7 @@ pixi run python run.py
 | **原始模型** | [MediaTek Research Breeze ASR 25](https://huggingface.co/MediaTek-Research/Breeze-ASR-25) |
 | **基礎架構** | OpenAI Whisper-large-v2（1.5B 參數） |
 | **推論格式** | CTranslate2（[SoybeanMilk/faster-whisper-Breeze-ASR-25](https://huggingface.co/SoybeanMilk/faster-whisper-Breeze-ASR-25)） |
-| **量化精度** | FP16 |
+| **量化精度** | FP16（可選 INT8） |
 | **推論設備** | NVIDIA GPU（CUDA） |
 | **授權** | Apache 2.0 |
 
@@ -121,13 +121,36 @@ pixi run python run.py
 
 ---
 
+## 實作細節
+
+### Windows CP950 編碼處理
+
+Windows 終端機預設使用 cp950 編碼，部分音訊裝置名稱含特殊字元（如 `®`）會導致 `UnicodeEncodeError`。`run.py` 啟動時將 stdout 重新設定為 UTF-8 編碼來解決此問題：
+
+```python
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+```
+
+### OpenMP 衝突處理
+
+`faster-whisper` 使用 LLVM OpenMP（`libomp.dll`），但 conda 環境中的 Intel MKL 使用 `libiomp5md.dll`，載入時會發生衝突。設定環境變數跳過此檢查：
+
+```python
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+```
+
+此變數僅影響 OpenMP 初始化檢查，不影響效能與正確性。
+
+---
+
 ## 專案架構
 
 ```
-STT_test/
+breeze-asr-inference/
 ├── .git/                  # Git 版本控制
 ├── .gitignore             # 排除 .pixi/、__pycache__、*.wav 等
 ├── .pixi/                 # pixi 虛擬環境（自動產生，不納入版本控制）
+├── LICENSE                # Apache 2.0 授權
 ├── pixi.toml              # 專案環境設定檔
 ├── pixi.lock              # 依賴鎖定檔（pixi 自動管理）
 ├── README.md              # 本文件
@@ -151,6 +174,8 @@ main()
 ## Git 提交歷史
 
 ```
+154d8ce docs: add Apache 2.0 license
+51b001a docs: add README with project overview, usage guide, and performance benchmarks
 959f43f feat: switch to faster-whisper (CTranslate2) inference engine
 e4752ac feat: add Timer class to profile each stage (audio load, model load, inference)
 f8dab5b fix: resolve torchaudio incompatibility and cp950 encoding on Windows
@@ -162,4 +187,4 @@ f8dab5b fix: resolve torchaudio incompatibility and cp950 encoding on Windows
 ## 授權
 
 - **模型權重**：[Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0)（MediaTek Research Breeze ASR 25）
-- **專案程式碼**：[MIT](LICENSE)
+- **專案程式碼**：[Apache 2.0](LICENSE)
