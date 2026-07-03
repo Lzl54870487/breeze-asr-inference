@@ -1,5 +1,6 @@
 import argparse
 import sys
+import time
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -13,6 +14,20 @@ from transformers import (
     WhisperForConditionalGeneration,
     AutomaticSpeechRecognitionPipeline,
 )
+
+
+class Timer:
+    def __init__(self, name):
+        self.name = name
+
+    def __enter__(self):
+        self.start = time.perf_counter()
+        return self
+
+    def __exit__(self, *args):
+        elapsed = time.perf_counter() - self.start
+        dev = "GPU" if torch.cuda.is_available() else "CPU"
+        print(f"  [{self.name}] [{dev}] {elapsed:.2f}s")
 
 MODEL_ID = "MediaTek-Research/Breeze-ASR-25"
 
@@ -53,14 +68,10 @@ def load_audio(file_path):
 
 
 def load_model():
-    print("正在下載/載入 Breeze ASR 25 模型... (第一次執行需下載約 3GB)")
     processor = WhisperProcessor.from_pretrained(MODEL_ID)
     model = WhisperForConditionalGeneration.from_pretrained(MODEL_ID)
     if torch.cuda.is_available():
         model = model.to("cuda")
-        print("使用 GPU 加速")
-    else:
-        print("使用 CPU 推論 (速度較慢)")
     model.eval()
     return processor, model
 
@@ -88,15 +99,26 @@ def main():
         list_devices()
         return
 
+    print("===== Breeze ASR 25 語音辨識 =====")
+    total_start = time.perf_counter()
+
     if args.file:
-        print(f"載入音檔: {args.file}")
-        audio = load_audio(args.file)
+        with Timer("載入音檔"):
+            audio = load_audio(args.file)
     else:
         device = args.device if args.device is not None else select_device()
-        audio = record_audio(args.duration, device=device)
+        with Timer("錄音"):
+            audio = record_audio(args.duration, device=device)
 
-    processor, model = load_model()
-    text = transcribe(processor, model, audio)
+    with Timer("載入模型"):
+        processor, model = load_model()
+
+    with Timer("模型推論"):
+        text = transcribe(processor, model, audio)
+
+    total_elapsed = time.perf_counter() - total_start
+    print(f"  ───────────────────────────")
+    print(f"  總計: {total_elapsed:.2f}s\n")
 
     print("=== 辨識結果 ===")
     print(text)
