@@ -1,19 +1,18 @@
 import argparse
+import os
 import sys
 import time
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
-import torch
-import torchaudio
-from transformers import (
-    WhisperProcessor,
-    WhisperForConditionalGeneration,
-    AutomaticSpeechRecognitionPipeline,
-)
+from faster_whisper import WhisperModel
+
+CT2_MODEL_ID = "SoybeanMilk/faster-whisper-Breeze-ASR-25"
 
 
 class Timer:
@@ -26,10 +25,7 @@ class Timer:
 
     def __exit__(self, *args):
         elapsed = time.perf_counter() - self.start
-        dev = "GPU" if torch.cuda.is_available() else "CPU"
-        print(f"  [{self.name}] [{dev}] {elapsed:.2f}s")
-
-MODEL_ID = "MediaTek-Research/Breeze-ASR-25"
+        print(f"  [{self.name}] {elapsed:.2f}s")
 
 
 def list_devices():
@@ -56,35 +52,36 @@ def record_audio(duration, samplerate=16000, device=None):
     return recording.flatten()
 
 
+def resample(audio, orig_sr, target_sr=16000):
+    if orig_sr == target_sr:
+        return audio
+    duration = len(audio) / orig_sr
+    target_len = int(duration * target_sr)
+    return np.interp(
+        np.linspace(0, len(audio) - 1, target_len),
+        np.arange(len(audio)),
+        audio,
+    )
+
+
 def load_audio(file_path):
     audio, sr = sf.read(file_path, dtype=np.float32)
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
-    if sr != 16000:
-        resampler = torchaudio.transforms.Resample(sr, 16000)
-        audio_tensor = torch.from_numpy(audio).float()
-        audio = resampler(audio_tensor).numpy()
-    return audio
+    return resample(audio, sr)
 
 
 def load_model():
-    processor = WhisperProcessor.from_pretrained(MODEL_ID)
-    model = WhisperForConditionalGeneration.from_pretrained(MODEL_ID)
-    if torch.cuda.is_available():
-        model = model.to("cuda")
-    model.eval()
-    return processor, model
+    device = "cuda"
+    compute_type = "float16"
+    model = WhisperModel(CT2_MODEL_ID, device=device, compute_type=compute_type)
+    return model
 
 
-def transcribe(processor, model, audio):
-    pipe = AutomaticSpeechRecognitionPipeline(
-        model=model,
-        tokenizer=processor.tokenizer,
-        feature_extractor=processor.feature_extractor,
-        chunk_length_s=0,
-    )
-    result = pipe(audio, return_timestamps=True)
-    return result["text"]
+def transcribe(model, audio):
+    segments, info = model.transcribe(audio, beam_size=5, language="zh")
+    text = "".join(seg.text for seg in segments)
+    return text
 
 
 def main():
@@ -99,7 +96,7 @@ def main():
         list_devices()
         return
 
-    print("===== Breeze ASR 25 語音辨識 =====")
+    print("===== Breeze ASR 25 語音辨識 (faster-whisper) =====")
     total_start = time.perf_counter()
 
     if args.file:
@@ -111,10 +108,10 @@ def main():
             audio = record_audio(args.duration, device=device)
 
     with Timer("載入模型"):
-        processor, model = load_model()
+        model = load_model()
 
     with Timer("模型推論"):
-        text = transcribe(processor, model, audio)
+        text = transcribe(model, audio)
 
     total_elapsed = time.perf_counter() - total_start
     print(f"  ───────────────────────────")
