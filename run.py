@@ -5,6 +5,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import numpy as np
 import sounddevice as sd
+import soundfile as sf
 import torch
 import torchaudio
 from transformers import (
@@ -41,13 +42,14 @@ def record_audio(duration, samplerate=16000, device=None):
 
 
 def load_audio(file_path):
-    waveform, sr = torchaudio.load(file_path)
-    if waveform.shape[0] > 1:
-        waveform = waveform.mean(dim=0, keepdim=True)
+    audio, sr = sf.read(file_path, dtype=np.float32)
+    if audio.ndim > 1:
+        audio = audio.mean(axis=1)
     if sr != 16000:
         resampler = torchaudio.transforms.Resample(sr, 16000)
-        waveform = resampler(waveform)
-    return waveform.squeeze().numpy()
+        audio_tensor = torch.from_numpy(audio).float()
+        audio = resampler(audio_tensor).numpy()
+    return audio
 
 
 def load_model():
